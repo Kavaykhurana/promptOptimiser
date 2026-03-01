@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { getGeminiKey, runPhase1Analysis, runPhase2Optimization, runPhase3Refinement, calculateHeuristicScore } from "@/lib/gemini";
+import { getGeminiKey, runPhase1Analysis, runPhase2Optimization, calculateHeuristicScore } from "@/lib/gemini";
 
 export function InputPanel() {
   const { config, setConfig, addHistoryEntry, setHasKey } = useAppStore();
@@ -63,7 +63,7 @@ export function InputPanel() {
     }
 
     // PHASE 2 (short pause to avoid rate limiting on free Gemini tier)
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 1000));
     setProcessingPhase("OPTIMIZING");
     let optimizedPrompt = null;
     try {
@@ -72,22 +72,6 @@ export function InputPanel() {
     } catch (err: any) {
       console.error(err);
       toast.error("Optimization failed: " + (err.message || "Unknown error"));
-    }
-
-    // PHASE 3 - Self-refinement critique pass (short pause to avoid rate limiting)
-    if (optimizedPrompt) {
-      await new Promise((r) => setTimeout(r, 2000));
-      setProcessingPhase("REFINING");
-      try {
-        const refined = await runPhase3Refinement(rawPrompt, optimizedPrompt, config, apiKey);
-        if (refined && refined.trim().length > 0) {
-          optimizedPrompt = refined;
-        }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (err: any) {
-        console.warn("Phase 3 refinement failed, using Phase 2 output:", err);
-        // Non-fatal: we still have the Phase 2 output
-      }
     }
 
     // Compute post-optimization score

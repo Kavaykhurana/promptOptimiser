@@ -1,12 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useAppStore } from "@/lib/store";
-import { Copy, Download, Sparkles, CheckCircle2, AlertTriangle, Info } from "lucide-react";
+import { Copy, Download, Sparkles, CheckCircle2, AlertTriangle, Info, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { getGeminiKey, runPhase3Refinement, calculateHeuristicScore } from "@/lib/gemini";
 
 function ClarityGauge({ score }: { score: number }) {
   const radius = 40;
@@ -49,7 +51,9 @@ function ClarityGauge({ score }: { score: number }) {
 
 export function ResultDashboard() {
   const history = useAppStore((state) => state.history);
+  const addHistoryEntry = useAppStore((state) => state.addHistoryEntry);
   const entry = history.length > 0 ? history[0] : null;
+  const [isRefining, setIsRefining] = useState(false);
 
   if (!entry) {
     return (
@@ -85,6 +89,37 @@ export function ResultDashboard() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleRefine = async () => {
+    if (!optimizedPrompt || !entry) return;
+    let apiKey = "";
+    try {
+      apiKey = getGeminiKey();
+    } catch {
+      toast.error("API Key not found.");
+      return;
+    }
+    setIsRefining(true);
+    try {
+      const refined = await runPhase3Refinement(entry.rawPrompt, optimizedPrompt, entry.config, apiKey);
+      if (refined && refined.trim().length > 0) {
+        const optimizedScore = calculateHeuristicScore(refined);
+        addHistoryEntry({
+          ...entry,
+          id: crypto.randomUUID(),
+          timestamp: Date.now(),
+          optimizedPrompt: refined,
+          optimizedScore,
+        });
+        toast.success("Prompt refined successfully!");
+      }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (err: any) {
+      toast.error("Refinement failed: " + (err.message || "Unknown error"));
+    } finally {
+      setIsRefining(false);
     }
   };
 
@@ -227,7 +262,14 @@ export function ResultDashboard() {
               Optimized Prompt
             </h3>
             {optimizedPrompt && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
+                <Button variant="outline" size="sm" onClick={handleRefine} disabled={isRefining}>
+                  {isRefining ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Refining...</>
+                  ) : (
+                    <><RefreshCw className="w-4 h-4 mr-2" />Refine Further</>
+                  )}
+                </Button>
                 <Button variant="outline" size="sm" onClick={handleCopy}>
                   <Copy className="w-4 h-4 mr-2" />
                   Copy
