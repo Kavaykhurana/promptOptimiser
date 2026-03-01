@@ -113,11 +113,11 @@ export async function callGemini(
 
   if (response.status === 401) throw new Error("INVALID_KEY");
 
-  // Rate limited — retry with exponential backoff (max 3 retries: 3s, 6s, 12s)
+  // Rate limited — retry with exponential backoff (max 5 retries: 5s, 10s, 20s, 40s, 80s)
   if (response.status === 429) {
-    if (_retryCount >= 3) throw new Error("RATE_LIMITED — wait 30 seconds and try again");
-    const waitMs = Math.pow(2, _retryCount) * 3000; // 3s, 6s, 12s
-    console.warn(`Rate limited, retrying in ${waitMs / 1000}s... (attempt ${_retryCount + 1}/3)`);
+    if (_retryCount >= 5) throw new Error("RATE_LIMITED — wait 60 seconds and try again");
+    const waitMs = Math.pow(2, _retryCount) * 5000; // 5s, 10s, 20s, 40s, 80s
+    console.warn(`Rate limited, retrying in ${waitMs / 1000}s... (attempt ${_retryCount + 1}/5)`);
     await sleep(waitMs);
     return callGemini(prompt, apiKey, options, _retryCount + 1);
   }
