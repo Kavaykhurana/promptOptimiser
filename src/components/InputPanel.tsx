@@ -62,7 +62,8 @@ export function InputPanel() {
       return;
     }
 
-    // PHASE 2
+    // PHASE 2 (short pause to avoid rate limiting on free Gemini tier)
+    await new Promise((r) => setTimeout(r, 2000));
     setProcessingPhase("OPTIMIZING");
     let optimizedPrompt = null;
     try {
@@ -73,8 +74,9 @@ export function InputPanel() {
       toast.error("Optimization failed: " + (err.message || "Unknown error"));
     }
 
-    // PHASE 3 - Self-refinement critique pass
+    // PHASE 3 - Self-refinement critique pass (short pause to avoid rate limiting)
     if (optimizedPrompt) {
+      await new Promise((r) => setTimeout(r, 2000));
       setProcessingPhase("REFINING");
       try {
         const refined = await runPhase3Refinement(rawPrompt, optimizedPrompt, config, apiKey);

@@ -33,6 +33,8 @@ export function getGeminiKey(): string {
   return key;
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export async function callGemini(
   prompt: string,
   apiKey: string,
@@ -42,6 +44,7 @@ export async function callGemini(
     systemInstruction?: string;
     responseMimeType?: string;
   },
+  _retryCount = 0,
 ): Promise<string> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const body: any = {
@@ -69,7 +72,15 @@ export async function callGemini(
   });
 
   if (response.status === 401) throw new Error("INVALID_KEY");
-  if (response.status === 429) throw new Error("RATE_LIMITED");
+
+  // Rate limited — retry with exponential backoff (max 3 retries: 8s, 16s, 32s)
+  if (response.status === 429) {
+    if (_retryCount >= 3) throw new Error("RATE_LIMITED");
+    const waitMs = Math.pow(2, _retryCount + 3) * 1000; // 8s, 16s, 32s
+    await sleep(waitMs);
+    return callGemini(prompt, apiKey, options, _retryCount + 1);
+  }
+
   if (!response.ok) throw new Error("GEMINI_ERROR");
 
   const data = await response.json();
