@@ -234,22 +234,6 @@ export function ResultDashboard() {
           </div>
         )}
 
-        {/* Improvements Checklist */}
-        {!isAnalyzing && analysis?.improvement_strategy && analysis.improvement_strategy.length > 0 && (
-          <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-xl p-5">
-            <h4 className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 mb-3 flex items-center gap-2">
-              <Info className="w-4 h-4" /> Recommended Improvements
-            </h4>
-            <ul className="space-y-2">
-              {analysis.improvement_strategy.map((item, i) => (
-                <li key={i} className="text-sm flex gap-2 items-start">
-                  <CheckCircle2 className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
-                  <span className="text-muted-foreground leading-relaxed">{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
 
         {/* Weaknesses/Risks */}
         {!isAnalyzing && analysis?.risk_issues && analysis.risk_issues.length > 0 && (

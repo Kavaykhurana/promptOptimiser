@@ -69,9 +69,8 @@ export const useAppStore = create<AppState>()(
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         config: state.config,
-        history: state.history,
+        // history is intentionally NOT persisted — avoids stale results on reload
         // hasKey is explicitly NOT persisted here because the actual key is in `pf_gemini_key`.
-        // We will re-check `pf_gemini_key` on mount to set `hasKey`.
       }),
     }
   )
