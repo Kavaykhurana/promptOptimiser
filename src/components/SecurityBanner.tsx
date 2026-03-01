@@ -1,7 +1,6 @@
 "use client";
 
 import { ShieldCheck, Lock, Eye, Server, Trash2 } from "lucide-react";
-import { motion } from "framer-motion";
 
 const securityPoints = [
   {
@@ -32,7 +31,7 @@ const securityPoints = [
     icon: ShieldCheck,
     title: "Hardened Security Headers",
     description:
-      "CSP restricts all network requests to only the Gemini API. X-Frame-Options DENY prevents clickjacking. HSTS enforces HTTPS. FLoC/Interest Cohort tracking is disabled.",
+      "X-Frame-Options DENY prevents clickjacking. HSTS enforces HTTPS. Permissions-Policy disables camera, microphone, and location tracking.",
   },
 ];
 
@@ -56,13 +55,10 @@ export function SecurityBanner() {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {securityPoints.map((point, i) => (
-            <motion.div
+            <div
               key={i}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: i * 0.1 }}
-              viewport={{ once: true }}
-              className="p-5 bg-card rounded-xl border shadow-sm hover:shadow-md transition-shadow"
+              className="p-5 bg-card rounded-xl border shadow-sm hover:shadow-md transition-shadow animate-fade-in"
+              style={{ animationDelay: `${i * 100}ms` }}
             >
               <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center text-green-600 dark:text-green-400 mb-3">
                 <point.icon className="w-5 h-5" />
@@ -71,7 +67,7 @@ export function SecurityBanner() {
               <p className="text-sm text-muted-foreground leading-relaxed">
                 {point.description}
               </p>
-            </motion.div>
+            </div>
           ))}
         </div>
 

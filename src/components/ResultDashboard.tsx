@@ -1,23 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAppStore } from "@/lib/store";
 import { Copy, Download, Sparkles, CheckCircle2, AlertTriangle, Info, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { motion } from "framer-motion";
 import { getGeminiKey, runPhase3Refinement, calculateHeuristicScore } from "@/lib/gemini";
 
 function ClarityGauge({ score }: { score: number }) {
   const radius = 40;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (score / 100) * circumference;
+  const circleRef = useRef<SVGCircleElement>(null);
 
   let colorClass = "text-red-500";
   if (score >= 40) colorClass = "text-yellow-500";
   if (score >= 80) colorClass = "text-green-500";
+
+  useEffect(() => {
+    const el = circleRef.current;
+    if (el) {
+      el.style.strokeDashoffset = String(circumference);
+      requestAnimationFrame(() => {
+        el.style.transition = "stroke-dashoffset 1s ease-out";
+        el.style.strokeDashoffset = String(strokeDashoffset);
+      });
+    }
+  }, [score, circumference, strokeDashoffset]);
 
   return (
     <div className="relative w-24 h-24 flex items-center justify-center">
@@ -29,16 +40,14 @@ function ClarityGauge({ score }: { score: number }) {
           className="stroke-muted fill-none"
           strokeWidth="8"
         />
-        <motion.circle
+        <circle
+          ref={circleRef}
           cx="50"
           cy="50"
           r={radius}
           className={`${colorClass} fill-none stroke-current`}
           strokeWidth="8"
           strokeLinecap="round"
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset }}
-          transition={{ duration: 1, ease: "easeOut" }}
           style={{ strokeDasharray: circumference }}
         />
       </svg>
@@ -47,6 +56,22 @@ function ClarityGauge({ score }: { score: number }) {
       </div>
     </div>
   );
+}
+
+function AnimatedBar({ width, delay }: { width: number; delay: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el) {
+      el.style.width = "0%";
+      const timer = setTimeout(() => {
+        el.style.transition = "width 1s ease-out";
+        el.style.width = `${width}%`;
+      }, delay * 100);
+      return () => clearTimeout(timer);
+    }
+  }, [width, delay]);
+  return <div ref={ref} className="h-full bg-indigo-500 rounded-full" />;
 }
 
 export function ResultDashboard() {
@@ -199,12 +224,7 @@ export function ResultDashboard() {
                   <div key={i} className="flex items-center gap-3">
                     <span className="text-sm w-28 font-medium">{model.name}</span>
                     <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                      <motion.div
-                        className="h-full bg-indigo-500 rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${model.score ?? 50}%` }}
-                        transition={{ duration: 1, delay: i * 0.1 }}
-                      />
+                      <AnimatedBar width={model.score ?? 50} delay={i} />
                     </div>
                     <span className="text-xs text-muted-foreground w-8 text-right">{model.score ?? 50}</span>
                   </div>
