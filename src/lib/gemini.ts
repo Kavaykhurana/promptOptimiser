@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-const GEMINI_ENDPOINT =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const GEMINI_MODEL = "gemini-2.0-flash";
+const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export const analysisSchema = z.object({
   intent: z.string().nullable().optional(),
@@ -33,7 +33,7 @@ export function getGeminiKey(): string {
   return key;
 }
 
-// Fast key validation — uses a minimal generateContent call with a 6s timeout.
+// Fast key validation — uses a minimal models list call with a 6s timeout.
 // Does NOT use the retry backoff logic so it fails fast.
 export async function validateGeminiKey(apiKey: string): Promise<void> {
   const trimmed = apiKey.trim();
@@ -49,7 +49,7 @@ export async function validateGeminiKey(apiKey: string): Promise<void> {
   let response: Response;
   try {
     response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models?key=${trimmed}`,
+      `${GEMINI_BASE}?key=${trimmed}`,
       { method: "GET", signal: controller.signal },
     );
   } catch {
@@ -103,7 +103,9 @@ export async function callGemini(
     body.generationConfig.responseMimeType = options.responseMimeType;
   }
 
-  const response = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
+  const endpoint = `${GEMINI_BASE}/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -111,15 +113,19 @@ export async function callGemini(
 
   if (response.status === 401) throw new Error("INVALID_KEY");
 
-  // Rate limited — retry with exponential backoff (max 3 retries: 8s, 16s, 32s)
+  // Rate limited — retry with exponential backoff (max 3 retries: 3s, 6s, 12s)
   if (response.status === 429) {
-    if (_retryCount >= 3) throw new Error("RATE_LIMITED");
-    const waitMs = Math.pow(2, _retryCount + 3) * 1000; // 8s, 16s, 32s
+    if (_retryCount >= 3) throw new Error("RATE_LIMITED — wait 30 seconds and try again");
+    const waitMs = Math.pow(2, _retryCount) * 3000; // 3s, 6s, 12s
+    console.warn(`Rate limited, retrying in ${waitMs / 1000}s... (attempt ${_retryCount + 1}/3)`);
     await sleep(waitMs);
     return callGemini(prompt, apiKey, options, _retryCount + 1);
   }
 
-  if (!response.ok) throw new Error("GEMINI_ERROR");
+  if (!response.ok) {
+    const errBody = await response.text().catch(() => "");
+    throw new Error(`API error ${response.status}: ${errBody.slice(0, 200)}`);
+  }
 
   const data = await response.json();
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
