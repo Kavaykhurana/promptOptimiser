@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, KeyRound } from "lucide-react";
-import { callGemini } from "@/lib/gemini";
+import { validateGeminiKey } from "@/lib/gemini";
 import { useAppStore } from "@/lib/store";
 import { toast } from "sonner";
 
@@ -42,10 +42,9 @@ export function ApiKeyModal({ isOpen, onOpenChange, isClosable = false }: ApiKey
 
     setIsValidating(true);
     try {
-      // Send a lightweight test request
-      await callGemini("test", apiKey, { maxTokens: 1 });
-      
-      // If it didn't throw, it's valid
+      await validateGeminiKey(apiKey);
+
+      // Key is valid — save it
       localStorage.setItem("pf_gemini_key", apiKey.trim());
       setHasKey(true);
       toast.success("API Key saved securely in your browser!");
@@ -53,9 +52,9 @@ export function ApiKeyModal({ isOpen, onOpenChange, isClosable = false }: ApiKey
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       if (err.message === "INVALID_KEY") {
-        toast.error("Invalid API key. Check your key and try again.");
+        toast.error("Invalid API key. Double-check it at Google AI Studio.");
       } else {
-        toast.error("Could not reach Gemini. Check your connection.");
+        toast.error("Network error. Check your connection and try again.");
       }
     } finally {
       setIsValidating(false);

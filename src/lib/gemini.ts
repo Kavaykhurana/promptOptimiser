@@ -33,6 +33,44 @@ export function getGeminiKey(): string {
   return key;
 }
 
+// Fast key validation — uses a minimal generateContent call with a 6s timeout.
+// Does NOT use the retry backoff logic so it fails fast.
+export async function validateGeminiKey(apiKey: string): Promise<void> {
+  const trimmed = apiKey.trim();
+
+  // Quick format check before hitting the network
+  if (!trimmed.startsWith("AIza") || trimmed.length < 30) {
+    throw new Error("INVALID_KEY");
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${trimmed}`,
+      { method: "GET", signal: controller.signal },
+    );
+  } catch {
+    throw new Error("NETWORK_ERROR");
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (response.status === 400 || response.status === 401 || response.status === 403) {
+    throw new Error("INVALID_KEY");
+  }
+  if (response.status === 429) {
+    // Key is valid but rate-limited — treat as valid and proceed
+    return;
+  }
+  if (!response.ok) {
+    throw new Error("NETWORK_ERROR");
+  }
+  // 200 = valid key
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function callGemini(
