@@ -235,28 +235,7 @@ export function ResultDashboard() {
         )}
 
 
-        {/* Weaknesses/Risks */}
-        {!isAnalyzing && analysis?.risk_issues && analysis.risk_issues.length > 0 && (
-          <div className="bg-orange-500/5 border border-orange-500/20 rounded-xl p-5">
-            <h4 className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-3 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4" /> Ambiguities & Risks
-            </h4>
-            <ul className="space-y-2">
-              {analysis.risk_issues.map((item, i) => (
-                <li key={i} className="text-sm flex gap-2 items-start text-orange-700/80 dark:text-orange-300/80">
-                  <span className="select-none">•</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-              {analysis.ambiguities?.map((item, i) => (
-                <li key={`a-${i}`} className="text-sm flex gap-2 items-start text-orange-700/80 dark:text-orange-300/80">
-                  <span className="select-none">•</span>
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+
 
         {/* Optimized Prompt Output */}
         <div className="mt-4 flex flex-col gap-3">
