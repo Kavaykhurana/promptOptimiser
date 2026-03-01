@@ -20,7 +20,7 @@ export function InputPanel() {
   const { config, setConfig, addHistoryEntry, setHasKey } = useAppStore();
   const [rawPrompt, setRawPrompt] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingPhase, setProcessingPhase] = useState<"IDLE" | "ANALYZING" | "OPTIMIZING" | "REFINING">("IDLE");
+
 
   const MAX_CHARS = Number(process.env.NEXT_PUBLIC_MAX_INPUT_CHARS || "15000");
 
@@ -44,8 +44,8 @@ export function InputPanel() {
     }
 
     setIsProcessing(true);
-    setProcessingPhase("OPTIMIZING");
     
+
     try {
       const { analysis, optimizedPrompt, heuristicScore } = await runAnalyzeAndOptimize(rawPrompt, config, apiKey);
       const optimizedScore = optimizedPrompt ? calculateHeuristicScore(optimizedPrompt) : undefined;
@@ -68,7 +68,6 @@ export function InputPanel() {
       toast.error(err.message || "Optimization failed. Please try again.");
     } finally {
       setIsProcessing(false);
-      setProcessingPhase("IDLE");
     }
   };
 
