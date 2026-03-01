@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useAppStore } from "@/lib/store";
-import { Copy, Download, Sparkles, CheckCircle2, AlertTriangle, Info, RefreshCw, Loader2 } from "lucide-react";
+import { Copy, Download, Sparkles, RefreshCw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
