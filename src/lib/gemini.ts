@@ -542,7 +542,151 @@ Apply your full 10-point review checklist to the optimized prompt above. Fix eve
 
   return await callGemini(promptText, apiKey, {
     systemInstruction,
-    temperature: 0.1,  // Even lower temp for refinement precision
+    temperature: 0.1,
     maxTokens: 8192,
   });
+}
+
+// ─── UNIFIED SINGLE-CALL: ANALYZE + OPTIMIZE ─────────────────────────────────
+// Combines Phase 1 (analysis) and Phase 2 (optimization) into ONE API call
+// to avoid rate limiting on the free Gemini tier.
+
+export const unifiedResultSchema = z.object({
+  analysis: z.object({
+    intent: z.string().nullable().optional(),
+    clarity_score: z.number().min(0).max(100).nullable().optional(),
+    tone_detected: z.string().nullable().optional(),
+    token_estimate: z.number().nullable().optional(),
+    complexity_level: z.string().nullable().optional(),
+    model_fit_score: z
+      .object({
+        chatgpt: z.number().min(0).max(100).nullable().optional(),
+        gemini: z.number().min(0).max(100).nullable().optional(),
+        image_model: z.number().min(0).max(100).nullable().optional(),
+        code_model: z.number().min(0).max(100).nullable().optional(),
+      })
+      .nullable()
+      .optional(),
+  }),
+  optimized_prompt: z.string(),
+});
+
+export type UnifiedResult = z.infer<typeof unifiedResultSchema>;
+
+export async function runAnalyzeAndOptimize(
+  rawPrompt: string,
+  config: PromptConfig,
+  apiKey: string,
+): Promise<{ analysis: AnalysisResult; optimizedPrompt: string; heuristicScore: number }> {
+  const heuristicScore = calculateHeuristicScore(rawPrompt);
+  const modelTactics = MODEL_TACTICS[config.targetModel] ?? MODEL_TACTICS["ChatGPT"];
+
+  const depthInstructions: Record<string, string> = {
+    "Basic": "Clean, concise, noticeably better. Focus on the 2-3 highest-impact improvements.",
+    "Structured": "Every key dimension present: role/persona, context, task, constraints, output format. Use Markdown headers.",
+    "Expert": "Expert-grade with deep constraints, reasoning frameworks, edge-case handling, airtight output specs.",
+    "Hard Constraint": "Rigid, unambiguous, constraint-heavy. Numbered RULES section and explicit DO NOT list.",
+  };
+  const depthGuide = depthInstructions[config.depthMode] ?? depthInstructions["Structured"];
+
+  const systemInstruction = `You are the world's foremost AI prompt engineer. You will receive a raw prompt and MUST do TWO things in a SINGLE response:
+
+1. ANALYZE the prompt: Assess its quality, detect intent, tone, complexity, and model fit scores.
+2. OPTIMIZE the prompt: Transform it into a dramatically better version for the target AI model.
+
+${modelTactics}
+
+**Depth Requirement:** ${depthGuide}
+
+**Optimization Guidelines:**
+- Add a precise expert persona/role
+- Add comprehensive context and constraints
+- Specify output format explicitly
+- Add negative constraints (DO NOT rules)
+- Structure with Markdown headers if appropriate
+- Make it model-specific for ${config.targetModel}
+
+Return a JSON object with EXACTLY this structure:
+{
+  "analysis": {
+    "intent": "string describing what the user wants",
+    "clarity_score": number 0-100,
+    "tone_detected": "detected tone string",
+    "token_estimate": number,
+    "complexity_level": "simple" | "moderate" | "complex" | "expert",
+    "model_fit_score": {
+      "chatgpt": number 0-100,
+      "gemini": number 0-100,
+      "image_model": number 0-100,
+      "code_model": number 0-100
+    }
+  },
+  "optimized_prompt": "The complete, fully optimized prompt text here. This MUST be the actual prompt, not a description of it."
+}
+
+CRITICAL RULES:
+- The "optimized_prompt" field must contain the ACTUAL optimized prompt, not meta-commentary about it.
+- The optimized prompt should be significantly better than the original in every dimension.
+- Output ONLY valid JSON. No text before or after the JSON.`;
+
+  const promptText = `Raw prompt to analyze and optimize:
+"""
+${rawPrompt}
+"""
+
+Configuration:
+- Target Model: ${config.targetModel}
+- Goal Type: ${config.goalType}
+- Output Format: ${config.outputFormat}
+- Depth Mode: ${config.depthMode}
+
+Analyze this prompt's quality and produce an optimized version. Return the JSON.`;
+
+  try {
+    const result = await callGemini(promptText, apiKey, {
+      systemInstruction,
+      temperature: 0.15,
+      maxTokens: 8192,
+      responseMimeType: "application/json",
+    });
+
+    let cleaned = result.trim();
+    if (cleaned.startsWith("```json")) {
+      cleaned = cleaned.replace(/^```json/, "").replace(/```$/, "").trim();
+    } else if (cleaned.startsWith("```")) {
+      cleaned = cleaned.replace(/^```/, "").replace(/```$/, "").trim();
+    }
+
+    const parsed = JSON.parse(cleaned);
+    const validated = unifiedResultSchema.parse(parsed);
+
+    // Build the full AnalysisResult from the unified response
+    const analysis: AnalysisResult = {
+      intent: validated.analysis.intent,
+      clarity_score: Math.round((validated.analysis.clarity_score ?? 50) * 0.7 + heuristicScore * 0.3),
+      tone_detected: validated.analysis.tone_detected,
+      token_estimate: validated.analysis.token_estimate,
+      complexity_level: validated.analysis.complexity_level,
+      model_fit_score: validated.analysis.model_fit_score,
+      ambiguities: [],
+      missing_constraints: [],
+      risk_issues: [],
+      improvement_strategy: [],
+    };
+
+    return {
+      analysis,
+      optimizedPrompt: validated.optimized_prompt,
+      heuristicScore,
+    };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (err: any) {
+    // If it's a known error, rethrow
+    if (err.message?.includes("INVALID_KEY") || err.message?.includes("RATE_LIMITED")) {
+      throw err;
+    }
+    // Fallback: return heuristic-only analysis with no optimized prompt
+    console.error("Unified call failed:", err);
+    throw new Error("Optimization failed: " + (err.message || "Please try again in a moment."));
+  }
 }

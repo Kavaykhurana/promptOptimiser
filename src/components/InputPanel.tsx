@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { getGeminiKey, runPhase1Analysis, runPhase2Optimization, calculateHeuristicScore } from "@/lib/gemini";
+import { getGeminiKey, runAnalyzeAndOptimize, calculateHeuristicScore } from "@/lib/gemini";
 
 export function InputPanel() {
   const { config, setConfig, addHistoryEntry, setHasKey } = useAppStore();
@@ -44,56 +44,32 @@ export function InputPanel() {
     }
 
     setIsProcessing(true);
-    let analysisResult = null;
-    let heuristicScore = 0;
+    setProcessingPhase("OPTIMIZING");
     
-    // PHASE 1
-    setProcessingPhase("ANALYZING");
     try {
-      const { analysis, heuristicScore: hs } = await runPhase1Analysis(rawPrompt, config, apiKey);
-      analysisResult = analysis;
-      heuristicScore = hs;
+      const { analysis, optimizedPrompt, heuristicScore } = await runAnalyzeAndOptimize(rawPrompt, config, apiKey);
+      const optimizedScore = optimizedPrompt ? calculateHeuristicScore(optimizedPrompt) : undefined;
+
+      addHistoryEntry({
+        id: crypto.randomUUID(),
+        timestamp: Date.now(),
+        rawPrompt,
+        config: { ...config },
+        analysis,
+        optimizedPrompt,
+        heuristicScore,
+        optimizedScore,
+      });
+      
+      toast.success("Prompt optimization complete!");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       console.error(err);
-      toast.error("Analysis failed: " + (err.message || "Unknown error"));
+      toast.error(err.message || "Optimization failed. Please try again.");
+    } finally {
       setIsProcessing(false);
       setProcessingPhase("IDLE");
-      return;
     }
-
-    // PHASE 2 (short pause to avoid rate limiting on free Gemini tier)
-    await new Promise((r) => setTimeout(r, 1000));
-    setProcessingPhase("OPTIMIZING");
-    let optimizedPrompt = null;
-    try {
-      optimizedPrompt = await runPhase2Optimization(rawPrompt, analysisResult, config, apiKey);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      console.error(err);
-      toast.error("Optimization failed: " + (err.message || "Unknown error"));
-    }
-
-    // Compute post-optimization score
-    const optimizedScore = optimizedPrompt ? calculateHeuristicScore(optimizedPrompt) : undefined;
-
-    // Save to History Event
-    const entry = {
-      id: crypto.randomUUID(),
-      timestamp: Date.now(),
-      rawPrompt,
-      config: { ...config },
-      analysis: analysisResult,
-      optimizedPrompt,
-      heuristicScore,
-      optimizedScore,
-    };
-    
-    addHistoryEntry(entry);
-    
-    setIsProcessing(false);
-    setProcessingPhase("IDLE");
-    toast.success("Prompt optimization complete!");
   };
 
   return (
@@ -210,7 +186,7 @@ export function InputPanel() {
           {isProcessing ? (
             <>
               <Loader2 className="w-5 h-5 animate-spin" />
-              {processingPhase === "ANALYZING" ? "Analyzing Prompt..." : processingPhase === "OPTIMIZING" ? "Optimizing..." : "Refining..."}
+              Optimizing Prompt...
             </>
           ) : (
             <>
